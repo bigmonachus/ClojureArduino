@@ -1,5 +1,5 @@
 (ns arduino
-  (:import [gnu.io CommPortIdentifier SerialPort])
+  (:import [gnu.io CommPortIdentifier SerialPort SerialPortEvent])
   (:require [clojure.java.io :as io]
 	    [clojure.stacktrace :as ss])
   (:gen-class))
@@ -25,13 +25,19 @@
       (doto (.open port "Arduino" 100)
 	(. setSerialPortParams 9600 SerialPort/DATABITS_8
 	   SerialPort/STOPBITS_1
-	   SerialPort/PARITY_NONE)))))
+	   SerialPort/PARITY_NONE)
+	(. addEventListener (proxy [gnu.io.SerialPortEventListener] []
+			      (serialEvent [^gnu.io.SerialPortEvent ev]
+					   (println "Serial event: " ev)
+					   (if (= ev SerialPortEvent/DATA_AVAILABLE)
+					     (println "data available")))))))))
 
 (defn -main []
   (with-open
       [port (get-port "COM3")
-       in (io/reader (.getInputStream port))]
-    
+       ]
+    (Thread/sleep 3000)
+    (println "Done.")
     ))
 
 (-main)
