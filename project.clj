@@ -5,7 +5,8 @@
 		 [javax.comm/comm "2.1-7"]]
   :dev-dependencies [[swank-clojure "1.2.1"]]
   :warn-on-reflection true
+  :source-path "src/clojure/"
   :uberjar-name "arduino.jar"
-  :jvm-opts []
+  :jvm-opts ["-Xbootclasspath/a:clojure.jar"]
   :main arduino)
 		 
