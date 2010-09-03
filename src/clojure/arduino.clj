@@ -4,19 +4,32 @@
 	    [clojure.stacktrace :as ss])
   (:gen-class))
 
-(def raw-read (atom "")) ;;Points to data being read.
+(def last-line (atom nil));last line read.
+(def raw-read (atom [])) ;;Points to data being read.
 
 (def accel (atom [0 0 0]))
 
 (defn parse-input
-  "Called by the event listener when a newline is found."
   [s]
-  (println s))
+  (cond
+   (= (count s) 6)
+    ;;Input should be of the form xxyyzz. xx should coerce into a 16-bit int.
+    (let [[x-l x-h
+	   y-l y-h
+	   z-l z-h &rest] (seq s)
+	   coerce (fn [a b]
+		    (let [num (+ (bit-shift-left (int a) 8) (int b))]
+		       (mod num (Math/pow 2 16))))
+	   x (coerce x-h x-l)
+	   y (coerce y-h y-l)
+	   z (coerce z-h z-l)]
+      (swap! accel (fn [a] [x y z])))
+    (= last-line nil) (prn :boned)))
 
 (defn get-port [^String name]
   (let [port-enum (CommPortIdentifier/getPortIdentifiers)
 	port-list (loop [p port-enum
-			 list [] ]
+			 list []]
 		    (if-not (. p hasMoreElements)
 		      list			     
 		      (recur p (conj list (. p nextElement)))))
@@ -39,14 +52,19 @@
 					   SerialPortEvent/DATA_AVAILABLE)
 				      ;;read data available.
 				      (let [input-stream (.getInputStream port)
-					    char (char (.read input-stream))]
-					(swap! raw-read #(str % char))
-					(when (= \newline char)
-					  ;;call parse-input and reset raw-read
-					  (parse-input @raw-read)
-					  (swap! raw-read (fn [a] ""))
-					  )))]
-				      )))]
+					    bytes-avail (.available input-stream)
+					    buffer (byte-array bytes-avail)
+					    bytes-read (.read input-stream buffer)]
+					
+					(swap! raw-read concat (seq buffer))
+					(try (swap! last-line (fn [a] (->> @raw-read
+								     (reverse)
+								     (drop-while #(not= \newline (char %)))
+								     (drop 2)
+								     (take-while #(not= \newline (char %)))
+								     (reverse))))
+					     ;;Exception: no problem.. it was a negative char
+					     (catch RuntimeException e ))))))]
 	(doto port
 	  (. addEventListener listener)
 	  (. notifyOnDataAvailable true)	    
@@ -55,11 +73,18 @@
 	     SerialPort/PARITY_NONE))))))
 
 (defn -main []
-  (with-open
-      [port (get-port "COM3")
-       ]
-    (prn port)
-    (Thread/sleep 5000)
+  (with-open [port (get-port "COM3")]
+    ;;wait for line
+    (loop [line @last-line]
+      (when-not line
+	(Thread/sleep 100)
+	(recur @last-line)))
+    
+    (doseq [i (range 200)]
+      (parse-input @last-line)
+      (println @accel)
+      (Thread/sleep 25)) ;;40hz approx
+
     (println "Done.")
     ))
 

@@ -16,8 +16,12 @@ void setup() {
   clr = SPDR;
   clr = SPSR;
   delay(100);
-  
-  spiWrite(0x20,135);
+  // 11 Power up
+  // 00 40 hz acceleration data
+  // 0  Test mode off
+  // 111 Three axis enabled
+  //11000111
+  spiWrite(0x20,0b11000111);
   //char ctrl = spiRead(0x20);
   //  Serial.println(ctrl,DEC);
 }
@@ -48,10 +52,22 @@ void loop() {
   char c = Serial.read();
   char id = spiRead(0xF); //WHO_AM_I  
   if (id == 0x3a){
-    Serial.println("Hello World!");
+    char x_l = spiRead(0x28);
+    char x_h = spiRead(0x29);
+    char y_l = spiRead(0x2a);
+    char y_h = spiRead(0x2b);
+    char z_l = spiRead(0x2c);
+    char z_h = spiRead(0x2d);
+    Serial.print(x_l);
+    Serial.print(x_h);
+    Serial.print(y_l);
+    Serial.print(y_h);
+    Serial.print(z_l);
+    Serial.print(z_h);
+    Serial.println();
   }
   else{
     Serial.println("Accelerometer read error.");
-    delay(100);
+    delay(25);
   }
 }
