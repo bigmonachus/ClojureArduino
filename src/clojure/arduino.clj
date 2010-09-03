@@ -1,5 +1,6 @@
 (ns arduino
   (:import [gnu.io CommPortIdentifier SerialPort SerialPortEvent])
+;  (:use [penumbra.opengl])
   (:require [clojure.java.io :as io]
 	    [clojure.stacktrace :as ss])
   (:gen-class))
@@ -10,23 +11,23 @@
 (def accel (atom [0 0 0]))
 
 (defn parse-input
-    ;;Input should be of the form xxyyzz. xx should coerce into a 16-bit int.
+  "Called by event listener to update the accel atom"
   [s]
-
   (if (= (count s) 6)
     (let [[x-l x-h
 	   y-l y-h
 	   z-l z-h] s
 	   coerce (fn [a b]
-		    (let [num (+ (bit-shift-left (int a) 8) (int b))]
-		      (if (> num (dec (Math/pow 2 16))) ;;16 bit signed integer within a 32 bit integer... fix this
+		    (let [num (+ (bit-shift-left (int a) 8)
+				 (int b))]
+		      ;;16 bit signed integer within a 32 bit integer... fix this
+		      (if (> num (dec (Math/pow 2 16))) 
 			(- num (Math/pow 2 16))
 			num)))
 	   x (coerce x-h x-l)
 	   y (coerce y-h y-l)
 	   z (coerce z-h z-l)]
-      (swap! accel (fn [a] [x y z])))
-    (print s)))
+      (swap! accel (fn [a] [x y z])))))
 
 (defn get-port [^String name]
   (let [port-enum (CommPortIdentifier/getPortIdentifiers)
@@ -51,21 +52,20 @@
 			     Runnable] []
 		       (serialEvent [^gnu.io.SerialPortEvent ev]
 				    (when (= (.getEventType ev)
-					   SerialPortEvent/DATA_AVAILABLE)
+					     SerialPortEvent/DATA_AVAILABLE)
 				      ;;read data available.
 				      (let [input-stream (.getInputStream port)
 					    bytes-avail (.available input-stream)
 					    buffer (byte-array bytes-avail)
 					    bytes-read (.read input-stream buffer)]					
 					(swap! raw-read concat (seq buffer))
-					(try (swap! last-line (fn [a] (->> @raw-read
-								     (reverse)
-								     (drop-while #(not= (int \newline) %))
-								     (drop 2)
-								     (take-while #(not= (int \newline)  %))
-								     (reverse))))
-					     ;;Exception: no problem.. it was a negative char
-					     (catch RuntimeException e ))))))]
+					(swap! last-line (fn [a] (->> @raw-read
+									   (reverse)
+									   (drop-while #(not= (int \newline) %))
+									   (drop 2)
+									   (take-while #(not= (int \newline)  %))
+									   (reverse)))))
+				      (parse-input @last-line))))]
 	(doto port
 	  (. addEventListener listener)
 	  (. notifyOnDataAvailable true)	    
@@ -80,9 +80,9 @@
       (when-not line
 	(Thread/sleep 100)
 	(recur @last-line)))
-    
-    (doseq [i (range 200)]
-      (parse-input @last-line)
+
+    ;;Start everything else
+    (doseq [i (range 400)]
       (println @accel)
       (Thread/sleep 25)) ;;40hz approx
     (println "Done.")))
