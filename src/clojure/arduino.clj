@@ -10,21 +10,23 @@
 (def accel (atom [0 0 0]))
 
 (defn parse-input
-  [s]
-  (cond
-   (= (count s) 6)
     ;;Input should be of the form xxyyzz. xx should coerce into a 16-bit int.
+  [s]
+
+  (if (= (count s) 6)
     (let [[x-l x-h
 	   y-l y-h
-	   z-l z-h &rest] (seq s)
+	   z-l z-h] s
 	   coerce (fn [a b]
 		    (let [num (+ (bit-shift-left (int a) 8) (int b))]
-		       (mod num (Math/pow 2 16))))
+		      (if (> num (dec (Math/pow 2 16))) ;;16 bit signed integer within a 32 bit integer... fix this
+			(- num (Math/pow 2 16))
+			num)))
 	   x (coerce x-h x-l)
 	   y (coerce y-h y-l)
 	   z (coerce z-h z-l)]
       (swap! accel (fn [a] [x y z])))
-    (= last-line nil) (prn :boned)))
+    (print s)))
 
 (defn get-port [^String name]
   (let [port-enum (CommPortIdentifier/getPortIdentifiers)
@@ -54,14 +56,13 @@
 				      (let [input-stream (.getInputStream port)
 					    bytes-avail (.available input-stream)
 					    buffer (byte-array bytes-avail)
-					    bytes-read (.read input-stream buffer)]
-					
+					    bytes-read (.read input-stream buffer)]					
 					(swap! raw-read concat (seq buffer))
 					(try (swap! last-line (fn [a] (->> @raw-read
 								     (reverse)
-								     (drop-while #(not= \newline (char %)))
+								     (drop-while #(not= (int \newline) %))
 								     (drop 2)
-								     (take-while #(not= \newline (char %)))
+								     (take-while #(not= (int \newline)  %))
 								     (reverse))))
 					     ;;Exception: no problem.. it was a negative char
 					     (catch RuntimeException e ))))))]
@@ -84,8 +85,6 @@
       (parse-input @last-line)
       (println @accel)
       (Thread/sleep 25)) ;;40hz approx
-
-    (println "Done.")
-    ))
+    (println "Done.")))
 
 (-main)
