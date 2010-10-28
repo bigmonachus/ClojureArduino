@@ -8,21 +8,23 @@
 (def last-line (atom nil));last line read.
 (def raw-read (atom [])) ;;Points to data being read.
 
-(def accel (atom [0 0 0]))
+(def accel (atom [0 0 0])) ;;Most current acceleration read.
 
 (defn parse-input
   "Called by event listener to update the accel atom"
   [s]
-  (if (= (count s) 6)
+  (if (= (count s) 6) ;;The arduino should be sending us 6 characters.
     (let [[x-l x-h
 	   y-l y-h
 	   z-l z-h] s
+	   ;;Function to convert two bytes into a 2-byte number.
+	   max-uchar (dec (Math/pow 2 16))
 	   coerce (fn [a b]
 		    (let [num (+ (bit-shift-left (int a) 8)
 				 (int b))]
 		      ;;16 bit signed integer within a 32 bit integer... fix this
-		      (if (> num (dec (Math/pow 2 16))) 
-			(- num (Math/pow 2 16))
+		      (if (>= num max-uchar) 
+			(- num max-uchar)
 			num)))
 	   x (coerce x-h x-l)
 	   y (coerce y-h y-l)
@@ -46,8 +48,9 @@
 	  (println "--------------------")		   
 	  (throw (new Exception "Port not found.")))      
       
-      ;;    Else, Return new configured,open port      
-      (let [^SerialPort port (.open port-id "Arduino" 2000)
+      ;;Else, Return new configured,open port      
+      (let [_ (println "Found port" name "... Opening...")
+	    ^SerialPort port (.open port-id "Arduino" 2000)
 	    listener (proxy [gnu.io.SerialPortEventListener
 			     Runnable] []
 		       (serialEvent [^gnu.io.SerialPortEvent ev]
@@ -57,12 +60,12 @@
 				      (let [input-stream (.getInputStream port)
 					    bytes-avail (.available input-stream)
 					    buffer (byte-array bytes-avail)
-					    bytes-read (.read input-stream buffer)]					
+					    bytes-read (.read input-stream buffer)] 
 					(swap! raw-read concat (seq buffer))
 					(swap! last-line (fn [a] (->> @raw-read
 									   (reverse)
 									   (drop-while #(not= (int \newline) %))
-									   (drop 2)
+									   (drop 2) ;;carrier return
 									   (take-while #(not= (int \newline)  %))
 									   (reverse)))))
 				      (parse-input @last-line))))]
@@ -74,7 +77,7 @@
 	     SerialPort/PARITY_NONE))))))
 
 (defn -main []
-  (with-open [port (get-port "COM3")]
+  (with-open [port (get-port "/dev/ttyUSB0")]
     ;;wait for line
     (loop [line @last-line]
       (when-not line
