@@ -90,4 +90,3 @@
       (Thread/sleep 25)) ;;40hz approx
     (println "Done.")))
 
-(-main)

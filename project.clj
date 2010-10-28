@@ -11,6 +11,8 @@
   :warn-on-reflection true
   :source-path "src/clojure/"
   :uberjar-name "arduino.jar"
-  :jvm-opts ["-Xbootclasspath/a:clojure.jar"]
+  :jvm-opts ["-Xbootclasspath/a:lib/clojure-1.2.0.jar" ;;improve startup time..
+	     "-Xms25M"
+	     "-Xmx128M"] 
   :main arduino)
 		 
