@@ -29,7 +29,7 @@
 	   x (coerce x-h x-l)
 	   y (coerce y-h y-l)
 	   z (coerce z-h z-l)]
-      (swap! accel (fn [a] [x y z])))))
+      (compare-and-set! accel  @accel [x y z]))))
 
 (defn get-port [^String name]
   (let [port-enum (CommPortIdentifier/getPortIdentifiers)
@@ -76,17 +76,26 @@
 	     SerialPort/STOPBITS_1
 	     SerialPort/PARITY_NONE))))))
 
-(defn -main []
-  (with-open [port (get-port "/dev/ttyUSB0")]
-    ;;wait for line
-    (loop [line @last-line]
+(defn wait-for-line []
+  (loop [line @last-line]
       (when-not line
 	(Thread/sleep 100)
-	(recur @last-line)))
+	(recur @last-line))))
 
-    ;;Start everything else
+
+(defmacro with-arduino
+  "Open port. Wait until arduino starts sending us data. Evaluate forms"
+  [port-name & forms]
+  `(with-open [port# (get-port ~port-name)]
+     (wait-for-line)
+     ~@forms
+     ;;clear everything
+     (compare-and-set! last-line @last-line nil)))
+
+  
+(defn -main []
+  (with-arduino "/dev/ttyUSB0"
     (doseq [i (range 400)]
       (println @accel)
-      (Thread/sleep 25)) ;;40hz approx
-    (println "Done.")))
+      (Thread/sleep 25))))
 
